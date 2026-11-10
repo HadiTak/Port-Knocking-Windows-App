@@ -32,6 +32,7 @@ namespace PortKnock
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
             Font = new Font("Segoe UI", 9f);
+            try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
 
             AddLabel("Host / IP", 10, 14);
             host.SetBounds(90, 10, 230, 24);
