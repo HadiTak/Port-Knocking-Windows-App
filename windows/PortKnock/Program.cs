@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Threading.Tasks;
@@ -23,6 +24,8 @@ namespace PortKnock
         Button knockBtn = new Button();
         Label status = new Label();
         List<Knock> knocks = new List<Knock>();
+        static readonly string SettingsPath =
+            Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "PortKnock.ini");
 
         public MainForm()
         {
@@ -68,6 +71,52 @@ namespace PortKnock
             status.SetBounds(10, 262, 310, 28);
 
             Controls.AddRange(new Control[] { host, test, delay, list, kind, port, add, del, knockBtn, status });
+
+            LoadSettings();
+            FormClosing += (s, e) => SaveSettings();
+        }
+
+        void SaveSettings()
+        {
+            try
+            {
+                var lines = new List<string>();
+                lines.Add("host=" + host.Text.Trim());
+                lines.Add("test=" + test.Text.Trim());
+                lines.Add("delay=" + delay.Text.Trim());
+                foreach (var k in knocks) lines.Add("knock=" + k.Kind + " " + k.Port);
+                File.WriteAllLines(SettingsPath, lines.ToArray(), new System.Text.UTF8Encoding(false));
+            }
+            catch { } // e.g. folder not writable: just skip saving
+        }
+
+        void LoadSettings()
+        {
+            try
+            {
+                if (!File.Exists(SettingsPath)) return;
+                foreach (var line in File.ReadAllLines(SettingsPath))
+                {
+                    int eq = line.IndexOf('=');
+                    if (eq < 0) continue;
+                    string key = line.Substring(0, eq).Trim();
+                    string val = line.Substring(eq + 1).Trim();
+                    if (key == "host") host.Text = val;
+                    else if (key == "test") test.Text = val;
+                    else if (key == "delay") { if (val.Length > 0) delay.Text = val; }
+                    else if (key == "knock")
+                    {
+                        var parts = val.Split(' ');
+                        int p = 0;
+                        if (parts[0] != "TCP" && parts[0] != "UDP" && parts[0] != "ICMP") continue;
+                        if (parts[0] != "ICMP" && (parts.Length < 2 || !int.TryParse(parts[1], out p))) continue;
+                        var kn = new Knock { Kind = parts[0], Port = p };
+                        knocks.Add(kn);
+                        list.Items.Add(kn.ToString());
+                    }
+                }
+            }
+            catch { } // corrupt file: start with defaults
         }
 
         void AddLabel(string t, int x, int y)
@@ -87,6 +136,7 @@ namespace PortKnock
             var kn = new Knock { Kind = k, Port = p };
             knocks.Add(kn);
             list.Items.Add(kn.ToString());
+            SaveSettings();
         }
 
         void RemoveKnock()
@@ -95,6 +145,7 @@ namespace PortKnock
             if (i < 0) return;
             list.Items.RemoveAt(i);
             knocks.RemoveAt(i);
+            SaveSettings();
         }
 
         void SetStatus(string text, Color c)
@@ -119,6 +170,7 @@ namespace PortKnock
                 return;
             }
 
+            SaveSettings();
             knockBtn.Enabled = false;
             SetStatus("Knocking...", Color.Gray);
             try
